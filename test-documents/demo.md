@@ -16,6 +16,15 @@ Sit amet, _consectetur_ adipiscing elit, **sed do eiusmod**
 
 Aliquip **ex _ea_ `commodo` consequat**. Duis aute irure dolor in
 
+```c
+#include <stdio.h>
+
+int main(int argc, char **argv) {
+	printf("Lorem %s Dolor", "Ipsum");
+	return 0;
+}
+```
+
 1. reprehenderit
 2. in
 3. voluptate
