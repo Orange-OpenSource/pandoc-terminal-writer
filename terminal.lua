@@ -149,7 +149,7 @@ function Image(s, src, tit, attr)
 end
 
 function Code(s, attr)
-	return vt100_sda(s, "1;32")
+	return vt100_sda(s, "32")
 end
 
 function InlineMath(s)
