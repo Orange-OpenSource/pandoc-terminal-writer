@@ -5,9 +5,42 @@
 -- Table to store footnotes, so they can be included at the end.
 local notes = {}
 
--- Blocksep is used to separate block elements.
-function Blocksep()
-	return "\n\n"
+
+local function pipe(cmd, inp)
+	local tmp = os.tmpname()
+	local tmph = io.open(tmp, "w")
+	tmph:write(inp)
+	tmph:close()
+	local outh = io.popen(cmd .. " " .. tmp .. " 2>/dev/null","r")
+	local result = outh:read("*all")
+	outh:close()
+	os.remove(tmp)
+	return result
+end
+
+-- tells if a given command is available on the system
+local function command_exists(cmd)
+	local h = io.popen("which " .. cmd)
+	local result = h:read("*all")
+	h:close()
+	return not (result == "")
+end
+
+-- Look for a syntax highlighter command
+if command_exists("pygmentize") then
+	highlight = function(s, fmt)
+		local hl = pipe("pygmentize -l " .. fmt ..  " -f console", s)
+		return hl == "" and s or hl
+	end
+elseif command_exists("highlight") then
+	highlight = function(s, fmt)
+		local hl = pipe("highlight -O ansi -S " .. fmt, s)
+		return hl == "" and s or hl
+	end
+else
+	highlight = function(s, fmt)
+		return s
+	end
 end
 
 -- prints a table recursively
@@ -22,6 +55,12 @@ function tprint (tbl, indent)
 			print(formatting .. v)
 		end
 	end
+end
+
+
+-- Blocksep is used to separate block elements.
+function Blocksep()
+	return "\n\n"
 end
 
 -- This function is called once for the whole document. Parameters:
@@ -164,7 +203,12 @@ end
 
 function CodeBlock(s, attr)
 	local lines = {}
-	local ret = vt100_sda("  ╭───┬ code: ─┄", "2") .. "\n"
+	local ret
+	ret = vt100_sda("  ╭───┬────────┄", "2") .. "\n"
+
+	if attr["class"] ~= "" then
+		s = highlight(s, attr["class"])
+	end
 
 	for l in s:gmatch("([^\n]*)\n?") do
 		lines[#lines + 1] = l
@@ -175,7 +219,7 @@ function CodeBlock(s, attr)
 	end
 
 	for n, l in pairs(lines) do
-		ret = ret .. vt100_sda("  │" .. string.format("%3d",n) .. "│ ", "2") .. vt100_sda(l, "1;32") .. "\n"
+		ret = ret .. vt100_sda("  │" .. string.format("%3d",n) .. "│ ", "2") .. l .. "\n"
 	end
 	return ret .. vt100_sda("  ╰───┴───────────┄", "2")
 end
