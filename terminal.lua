@@ -233,10 +233,10 @@ function indent(s, fl, ol)
 	for l in s:gmatch("[^\r\n]+") do
 		if i == 1 then
 			ret[i] = fl .. l
-	else
+		else
 			ret[i] = ol .. l
-	end
-	i = i + 1
+		end
+		i = i + 1
 	end
 	return table.concat(ret, "\n")
 end
@@ -244,7 +244,7 @@ end
 function BulletList(items)
 	local ret = {}
 	for _, item in pairs(items) do
-	ret[_] = indent(item, "  " .. vt100_sda("•", "2") .. " ", "    ")
+		ret[_] = indent(item, "  " .. vt100_sda("•", "2") .. " ", "    ")
 	end
 	return table.concat(ret, "\n")
 end
@@ -252,7 +252,7 @@ end
 function OrderedList(items)
 	local ret = {}
 	for _, item in pairs(items) do
-	ret[_] = indent(item, vt100_sda(string.format("%2d.", _), "2") .. " ", "    ")
+		ret[_] = indent(item, vt100_sda(string.format("%2d.", _), "2") .. " ", "    ")
 	end
 	return table.concat(ret, "\n")
 end
