@@ -145,7 +145,7 @@ function Link(s, src, tit, attr)
 end
 
 function Image(s, src, tit, attr)
-	return vt100_sda("    [Image (" .. tit .. ")](" .. src .. ")", "1")
+	return vt100_sda("[Image (" .. tit .. ")](" .. src .. ")", "1")
 end
 
 function Code(s, attr)
