@@ -1,11 +1,16 @@
 -- This is a VT100 terminal output writer for Pandoc.
 -- Inwoke with: pandoc -t terminal.lua
 
+-- Copyright (c) 2018 Orange
+-- Homepage: https://github.com/camilleoudot/pandoc-terminal-writer
+-- This module is released under the MIT License (MIT).
+-- Please see LICENCE.txt for details.
+-- Author: Camille Oudot
 
--- Table to store footnotes, so they can be included at the end.
+-- Table to store footnotes, so they can be appended at the end of the output.
 local notes = {}
 
-
+-- Pipes an inp(ut) to a cmd
 local function pipe(cmd, inp)
 	local tmp = os.tmpname()
 	local tmph = io.open(tmp, "w")
@@ -18,7 +23,7 @@ local function pipe(cmd, inp)
 	return result
 end
 
--- tells if a given command is available on the system
+-- Tells if a given command is available on the system
 local function command_exists(cmd)
 	local h = io.popen("which " .. cmd)
 	local result = h:read("*all")
@@ -26,7 +31,7 @@ local function command_exists(cmd)
 	return not (result == "")
 end
 
--- Look for a syntax highlighter command
+-- Look for a syntax highlighter command on the current system
 if command_exists("pygmentize") then
 	highlight = function(s, fmt)
 		local hl = pipe("pygmentize -l " .. fmt ..  " -f console", s)
@@ -43,7 +48,7 @@ else
 	end
 end
 
--- prints a table recursively
+-- Prints a table recursively
 function tprint (tbl, indent)
 	if not indent then indent = 0 end
 	for k, v in pairs(tbl) do
@@ -57,7 +62,6 @@ function tprint (tbl, indent)
 	end
 end
 
-
 -- Blocksep is used to separate block elements.
 function Blocksep()
 	return "\n\n"
@@ -66,7 +70,7 @@ end
 -- This function is called once for the whole document. Parameters:
 -- body is a string, metadata is a table, variables is a table.
 -- This gives you a fragment.  You could use the metadata table to
--- fill variables in a custom lua template.  Or, pass `--template=...`
+-- fill variables in a custom LUA template.  Or, pass `--template=...`
 -- to pandoc, and pandoc will add do the template processing as
 -- usual.
 function Doc(body, metadata, variables)
@@ -85,7 +89,7 @@ function Doc(body, metadata, variables)
 	return table.concat(buffer,'\n') .. '\n'
 end
 
--- Set Display Attibute using a VT100 escape sequence
+-- Sets Display Attribute using a VT100 escape sequence
 function vt100_sda(s, style)
 	return string.format(
 		"\27[%sm%s\27[0m",
