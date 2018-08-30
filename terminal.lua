@@ -273,7 +273,17 @@ end
 -- Gets the 'text only' version of a text to display (as they may have been
 -- modified with escape sequences before)
 local function _getText(txt)
-	return string.gsub(txt, "\27%[[;%d]m", "")
+	return string.gsub(txt, "\27%[[;%d]+m", "")
+end
+
+-- Count viewable chars in UTF-8 strings
+-- See http://lua-users.org/wiki/LuaUnicode
+function _utf8Len(ustring)
+	local ulen = 0
+	for uchar in string.gmatch(ustring, "([%z\1-\127\194-\244][\128-\191]*)") do
+		ulen = ulen + 1
+	end
+	return ulen
 end
 
 -- Position text in a wider string (stuffed with blanks)
@@ -282,7 +292,7 @@ function _position(txt, width, way)
 	if way < 0 or way > 2 then
 		return txt
 	end
-	local l = string.len(_getText(txt))
+	local l = _utf8Len(_getText(txt))
 	if width > l then
 		local b = (way == 0 and 0) or math.floor((width - l) / way)
 		local a = width - l - b
@@ -303,15 +313,17 @@ function Table(caption, aligns, widths, headers, rows)
 	end
 	-- Find maximum width for each column:
 	local col_width = {}
+	local cell_width = 0
 	for i, header in pairs(headers) do
-		table.insert(col_width, i, string.len(_getText(header)))
+		table.insert(col_width, i, _utf8Len(_getText(header)))
 		for _, row in pairs(rows) do
-			if string.len(_getText(row[i])) > col_width[i] then
-				col_width[i] = string.len(_getText(row[i]))
+			cell_width = _utf8Len(_getText(row[i]))
+			if cell_width > col_width[i] then
+				col_width[i] = cell_width
 			end
 		end
 	end
-	
+
 	local top_border = '┌'
 	local row_border = '├'
 	local bottom_border = '└'
@@ -346,8 +358,10 @@ function Table(caption, aligns, widths, headers, rows)
 	end
 	for i, row in pairs(rows) do
 		local content = ''
-		for i,c in pairs(row) do
-			content = content .. '│' .. _position(c, col_width[i], align[aligns[i]])
+		for i, c in pairs(row) do
+			if (col_width[i]) then
+				content = content .. '│' .. _position(c, col_width[i], align[aligns[i]])
+			end
 		end
 		add(content .. '│')
 		if i < table.getn(rows) then
