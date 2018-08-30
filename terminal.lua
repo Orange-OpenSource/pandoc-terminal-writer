@@ -2,7 +2,7 @@
 -- Inwoke with: pandoc -t terminal.lua
 
 -- Copyright (c) 2018 Orange
--- Homepage: https://github.com/camilleoudot/pandoc-terminal-writer
+-- Homepage: https://github.com/Orange-OpenSource/pandoc-terminal-writer
 -- This module is released under the MIT License (MIT).
 -- Please see LICENCE.txt for details.
 -- Author: Camille Oudot
@@ -270,8 +270,92 @@ function CaptionedImage(src, tit, caption, attr)
 	return BlockQuote(vt100_sda("[Image (" .. tit .. ")](" .. src .. ")", "1") .. "\n" .. caption)
 end
 
+-- Gets the 'text only' version of a text to display (as they may have been
+-- modified with escape sequences before)
+local function _getText(txt)
+	return string.gsub(txt, "\27%[[;%d]m", "")
+end
+
+-- Position text in a wider string (stuffed with blanks)
+-- 'way' is '0' to left justify, '1' for right and '2' for center
+function _position(txt, width, way)
+	if way < 0 or way > 2 then
+		return txt
+	end
+	local l = string.len(_getText(txt))
+	if width > l then
+		local b = (way == 0 and 0) or math.floor((width - l) / way)
+		local a = width - l - b
+		return string.rep(' ', b) .. txt .. string.rep(' ', a)
+	else
+		return txt
+	end
+end
+
+-- Caption is a string, aligns is an array of strings,
+-- widths is an array of floats, headers is an array of
+-- strings, rows is an array of arrays of strings.
 function Table(caption, aligns, widths, headers, rows)
-	return ""
+	local buffer = {}
+	local align = {["AlignDefault"] = 0, ["AlignLeft"] = 0, ["AlignRight"] = 1, ["AlignCenter"] = 2}
+	local function add(s)
+		table.insert(buffer, s)
+	end
+	-- Find maximum width for each column:
+	local col_width = {}
+	for i, header in pairs(headers) do
+		table.insert(col_width, i, string.len(_getText(header)))
+		for _, row in pairs(rows) do
+			if string.len(_getText(row[i])) > col_width[i] then
+				col_width[i] = string.len(_getText(row[i]))
+			end
+		end
+	end
+	
+	local top_border = '┌'
+	local row_border = '├'
+	local bottom_border = '└'
+	local last = table.getn(col_width)
+	local tmpl = ''
+	for i, w in pairs(col_width) do
+		tmpl = tmpl .. string.rep('─', w) .. (i < last and 'm' or '')
+	end
+	top_border = top_border .. string.gsub(tmpl, 'm', '┬') .. '┐'
+	row_border = row_border .. string.gsub(tmpl, 'm', '┼') .. '┤'
+	bottom_border = bottom_border .. string.gsub(tmpl, 'm', '┴') .. '┘'
+	
+	if caption ~= "" then
+		add(Strong(caption))
+	end
+	local header_row = {}
+	local empty_header = true
+	for i, h in pairs(headers) do
+		table.insert(header_row, Strong(_position(h, col_width[i], 2)))
+		empty_header = empty_header and h == ""
+	end
+	add(top_border)
+	if empty_header then
+		head = ""
+	else
+		local content = ''
+		for _, h in pairs(header_row) do
+			content = content .. '│' .. h
+		end
+		add(content .. '│')
+		add(row_border)
+	end
+	for i, row in pairs(rows) do
+		local content = ''
+		for i,c in pairs(row) do
+			content = content .. '│' .. _position(c, col_width[i], align[aligns[i]])
+		end
+		add(content .. '│')
+		if i < table.getn(rows) then
+			add(row_border)
+		end
+	end
+	add(bottom_border)
+	return table.concat(buffer,'\n')
 end
 
 function RawBlock(format, str)
