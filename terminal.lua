@@ -62,6 +62,75 @@ function tprint (tbl, indent)
 	end
 end
 
+
+--------- Helpers for wrapping long formatted text lines ----------------------
+
+-- Returns the first letter and the remaining characters of the input string.
+-- If the string begins with "Set Display Attribute" escape sequences, they are
+-- kept alongside the first letter in the first returned value.
+--
+-- example: get_1st_letter("ABCD")
+--          returns: "A", "BCD"
+--          get_1st_letter("\27[1mA\27[0mBCD")
+--          returns: "27[1mA\27[0m", "BCD"
+function get_1st_letter(s)
+	local function get_1st_letter_rec(s, acc)
+		if #s == 0 then
+			return "", ""
+		elseif #s == 1 then
+			return s, ""
+		else
+			local m = s:match("^\27%[[0-9;]+m")
+
+			if m == nil then
+				local m = s:match("^[^\27]\27%[[0-9;]+m")
+				if m == nil then
+					return acc .. s:sub(1,1), s:sub(2)
+				else
+					return acc .. m, s:sub(#m + 1)
+				end
+			else
+				return get_1st_letter_rec(s:sub(#m + 1), acc .. m)
+			end
+		end
+	end
+	return get_1st_letter_rec(s, "")
+end
+
+-- Inserts line breaks in 's' every 'w' _actual_ characters, meaning that the
+-- escape sequences do not count as a character.
+function fold(s, w)
+	local col = 0
+	local buf = ""
+	local h
+
+	while #s > 0 do
+		h, s = get_1st_letter(s)
+		if col == w then
+			buf = buf .. "\n"
+			col = 0
+		end
+		buf = buf .. h
+		col = col + 1
+	end
+	return buf
+end
+
+-- Merges all consecutive "Set Display Attribute" escape sequences in the input
+-- 's' string, and merges them into single ones in the returned string.
+-- 
+-- example: simplify_vt100("foo \27[1m\27[2;3m\27[4m bar")
+--          returns: "foo \27[1;2;3;4m bar"
+function simplify_vt100(s)
+	local _
+	while s:match("(\27%[[0-9;]+)m\27%[") do
+		s, _ = s:gsub("(\27%[[0-9;]+)m\27%[", "%1;")
+	end
+	return s
+end
+
+-------------------------------------------------------------------------------
+
 -- Blocksep is used to separate block elements.
 function Blocksep()
 	return "\n\n"
