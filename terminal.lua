@@ -70,9 +70,9 @@ end
 -- kept alongside the first letter in the first returned value.
 --
 -- example: get_1st_letter("ABCD")
---          returns: "A", "BCD"
---          get_1st_letter("\27[1mA\27[0mBCD")
---          returns: "27[1mA\27[0m", "BCD"
+--		  returns: "A", "BCD"
+--		  get_1st_letter("\27[1mA\27[0mBCD")
+--		  returns: "27[1mA\27[0m", "BCD"
 function get_1st_letter(s)
 	local function get_1st_letter_rec(s, acc)
 		if #s == 0 then
@@ -116,11 +116,33 @@ function fold(s, w)
 	return buf
 end
 
+-- Returns a substring of 's', starting after 'orig' and of length 'nb'
+-- Escape sequences are NOT counted as characters and thus are not cut.
+function subString(s, orig, nb)
+	local col = 0
+	local buf = ""
+	local h
+
+	while #s > 0 and col < orig do
+		h, s = get_1st_letter(s)
+		col = col + 1
+	end
+
+	col = 0
+	while #s > 0 and col < nb do
+		h, s = get_1st_letter(s)
+		buf = buf .. h
+		col = col + 1
+	end
+	return buf
+end
+
+
 -- Merges all consecutive "Set Display Attribute" escape sequences in the input
 -- 's' string, and merges them into single ones in the returned string.
 -- 
 -- example: simplify_vt100("foo \27[1m\27[2;3m\27[4m bar")
---          returns: "foo \27[1;2;3;4m bar"
+--		  returns: "foo \27[1;2;3;4m bar"
 function simplify_vt100(s)
 	local _
 	while s:match("(\27%[[0-9;]+)m\27%[") do
@@ -317,7 +339,7 @@ end
 function BulletList(items)
 	local ret = {}
 	for _, item in pairs(items) do
-		ret[_] = indent(item, "  " .. vt100_sda("•", "2") .. " ", "    ")
+		ret[_] = indent(item, "  " .. vt100_sda("•", "2") .. " ", "	")
 	end
 	return table.concat(ret, "\n")
 end
@@ -325,7 +347,7 @@ end
 function OrderedList(items)
 	local ret = {}
 	for _, item in pairs(items) do
-		ret[_] = indent(item, vt100_sda(string.format("%2d.", _), "2") .. " ", "    ")
+		ret[_] = indent(item, vt100_sda(string.format("%2d.", _), "2") .. " ", "	")
 	end
 	return table.concat(ret, "\n")
 end
@@ -371,6 +393,7 @@ function _position(txt, width, way)
 	end
 end
 
+MAX_COL_WIDTH = 42
 -- Caption is a string, aligns is an array of strings,
 -- widths is an array of floats, headers is an array of
 -- strings, rows is an array of arrays of strings.
@@ -382,17 +405,25 @@ function Table(caption, aligns, widths, headers, rows)
 	end
 	-- Find maximum width for each column:
 	local col_width = {}
+	local row_height = {}
+	for j, row in pairs(rows) do
+		row_height[j] = 1
+	end
 	local cell_width = 0
+	local cell_height = 0
 	for i, header in pairs(headers) do
 		table.insert(col_width, i, _utf8Len(_getText(header)))
-		for _, row in pairs(rows) do
+		for j, row in pairs(rows) do
 			cell_width = _utf8Len(_getText(row[i]))
 			if cell_width > col_width[i] then
-				col_width[i] = cell_width
+				col_width[i] = cell_width < MAX_COL_WIDTH and cell_width or MAX_COL_WIDTH
+			end
+			cell_height = math.floor(cell_width / MAX_COL_WIDTH) + 1
+			if cell_height > row_height[j] then
+				row_height[j] = cell_height
 			end
 		end
 	end
-
 	local top_border = '┌'
 	local row_border = '├'
 	local bottom_border = '└'
@@ -427,12 +458,19 @@ function Table(caption, aligns, widths, headers, rows)
 	end
 	for i, row in pairs(rows) do
 		local content = ''
-		for i, c in pairs(row) do
-			if (col_width[i]) then
-				content = content .. '│' .. _position(c, col_width[i], align[aligns[i]])
+		for k = 1, row_height[i] do -- Break long lines
+		content = ''
+			for j, c in pairs(row) do
+				local s = ''
+				if (col_width[j]) then
+					s = subString(c, (k - 1) * MAX_COL_WIDTH, MAX_COL_WIDTH)
+					content = content .. '│' .. _position(s, col_width[j], align[aligns[j]])
+				end
 			end
+			add(content .. '│')
+			
 		end
-		add(content .. '│')
+		
 		if i < table.getn(rows) then
 			add(row_border)
 		end
