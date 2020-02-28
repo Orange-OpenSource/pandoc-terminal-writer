@@ -427,7 +427,7 @@ function Table(caption, aligns, widths, headers, rows)
 	local top_border = '┌'
 	local row_border = '├'
 	local bottom_border = '└'
-	local last = table.getn(col_width)
+	local last = #col_width
 	local tmpl = ''
 	for i, w in pairs(col_width) do
 		tmpl = tmpl .. string.rep('─', w) .. (i < last and 'm' or '')
@@ -471,7 +471,7 @@ function Table(caption, aligns, widths, headers, rows)
 			
 		end
 		
-		if i < table.getn(rows) then
+		if i < #rows then
 			add(row_border)
 		end
 	end
