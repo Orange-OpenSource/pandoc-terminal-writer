@@ -1,7 +1,7 @@
 -- This is a VT100 terminal output writer for Pandoc.
 -- Inwoke with: pandoc -t terminal.lua
 
--- Copyright (c) 2018 Orange
+-- Copyright (c) 2018 — 2020 Orange
 -- Homepage: https://github.com/Orange-OpenSource/pandoc-terminal-writer
 -- This module is released under the MIT License (MIT).
 -- Please see LICENCE.txt for details.
@@ -9,6 +9,18 @@
 
 -- Table to store footnotes, so they can be appended at the end of the output.
 local notes = {}
+
+-- Globally declared:
+STYLE_BOLD   = "1" -- Bold
+STYLE_DIM    = "2" -- Dimmed
+STYLE_ITALIC = "3" -- Italic
+STYLE_UNDERL = "4" -- Underlined
+STYLE_STRIKE = "9" -- Striked through
+-- STYLE_TITLE  = "1;7;33" -- Bold, Inverted, Yellow
+STYLE_TITLE  = "1;33" -- Bold, NOT Inverted, Yellow
+STYLE_TABLE_HEAD = "1;33" -- Bold, Yellow
+SCREEN_WIDTH = 128
+terminal_col_nb = SCREEN_WIDTH
 
 -- Pipes an inp(ut) to a cmd
 local function pipe(cmd, inp)
@@ -48,20 +60,20 @@ else
 	end
 end
 
--- Prints a table recursively
-function tprint (tbl, indent)
-	if not indent then indent = 0 end
-	for k, v in pairs(tbl) do
-		formatting = string.rep("  ", indent) .. k .. ": "
-		if type(v) == "table" then
-			print(formatting)
-			tprint(v, indent+1)
-		else
-			print(formatting .. v)
-		end
-	end
+-- Look for the width of the current terminal window
+if os.getenv('COLUMNS') then
+	-- User defined
+	terminal_col_nb = tonumber(os.getenv('COLUMNS'))
+elseif command_exists("stty") then
+	local h = io.popen("stty size") -- Result is like: "42 80" (height width)
+	local w = h:read("*all")
+	terminal_col_nb = tonumber(string.match(w, "%d+%s(%d+)"))
+	h:close()
+elseif command_exists("tput") then
+	local h = io.popen("tput cols")
+	terminal_col_nb = tonumber(h:read("*all"))
+	h:close()
 end
-
 
 --------- Helpers for wrapping long formatted text lines ----------------------
 
@@ -208,11 +220,11 @@ function LineBreak()
 end
 
 function Emph(s)
-	return vt100_sda(s, "3")
+	return vt100_sda(s, STYLE_ITALIC)
 end
 
 function Strong(s)
-	return vt100_sda(s, "1")
+	return vt100_sda(s, STYLE_BOLD)
 end
 
 function Subscript(s)
@@ -228,19 +240,19 @@ function SmallCaps(s)
 end
 
 function Strikeout(s)
-	return vt100_sda(s, "9")
+	return vt100_sda(s, STYLE_STRIKE)
 end
 
 function Link(s, src, tit, attr)
 	if s == src then
-		return vt100_sda(s, "4")
+		return vt100_sda(s, STYLE_UNDERL)
 	else
-		return vt100_sda(s, "4") .. " (" .. vt100_sda(src, "2") .. ")"
+		return vt100_sda(s, STYLE_UNDERL) .. " (" .. vt100_sda(src, STYLE_DIM) .. ")"
 	end
 end
 
 function Image(s, src, tit, attr)
-	return vt100_sda("[Image (" .. tit .. ")](" .. src .. ")", "1")
+	return vt100_sda("[Image (" .. tit .. ")](" .. src .. ")", STYLE_BOLD)
 end
 
 function Code(s, attr)
@@ -281,25 +293,31 @@ end
 
 -- lev is an integer, the header level.
 function Header(lev, s, attr)
-	return vt100_sda(string.rep("██", lev - 1) .. "▓▒░ " .. s, "1;33")
+	return vt100_sda(string.rep("██", lev - 1) .. "▓▒░ " .. s .. " ", STYLE_TITLE)
 end
 
 function BlockQuote(s)
 	local ret = "  ▛\n"
+	local bloc = ''
 	for l in s:gmatch("[^\r\n]+") do
-		ret = ret .. "  ▌ " .. l .. "\n"
+		-- Split long line if needed:
+		bloc = fold(l, terminal_col_nb - 4)  -- 4 == width of left margin
+		for sl in bloc:gmatch("[^\r\n]+") do
+			ret = ret .. "  ▌ " .. sl .. "\n"
+		end
 	end
 	return ret .. "  ▙"
 end
 
 function HorizontalRule()
-	return " _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n"
+	return " " .. string.rep('—', terminal_col_nb - 3) .. "\n"
+	--return " _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n"
 end
 
 function CodeBlock(s, attr)
 	local lines = {}
 	local ret
-	ret = vt100_sda("  ╭───┬────────┄", "2") .. "\n"
+	ret = vt100_sda("  ╭───┬────────┄", STYLE_DIM) .. "\n"
 
 	if attr["class"] ~= "" then
 		s = highlight(s, attr["class"])
@@ -314,9 +332,9 @@ function CodeBlock(s, attr)
 	end
 
 	for n, l in pairs(lines) do
-		ret = ret .. vt100_sda("  │" .. string.format("%3d",n) .. "│ ", "2") .. l .. "\n"
+		ret = ret .. vt100_sda("  │" .. string.format("%3d",n) .. "│ ", STYLE_DIM) .. l .. "\n"
 	end
-	return ret .. vt100_sda("  ╰───┴───────────┄", "2")
+	return ret .. vt100_sda("  ╰───┴───────────┄", STYLE_DIM)
 end
 
 depth = 0
@@ -339,7 +357,7 @@ end
 function BulletList(items)
 	local ret = {}
 	for _, item in pairs(items) do
-		ret[_] = indent(item, "  " .. vt100_sda("•", "2") .. " ", "	")
+		ret[_] = indent(item, "  " .. vt100_sda("•", STYLE_DIM) .. " ", "	")
 	end
 	return table.concat(ret, "\n")
 end
@@ -347,7 +365,7 @@ end
 function OrderedList(items)
 	local ret = {}
 	for _, item in pairs(items) do
-		ret[_] = indent(item, vt100_sda(string.format("%2d.", _), "2") .. " ", "	")
+		ret[_] = indent(item, vt100_sda(string.format("%2d.", _), STYLE_DIM) .. " ", "	")
 	end
 	return table.concat(ret, "\n")
 end
@@ -358,7 +376,7 @@ function DefinitionList(items)
 end
 
 function CaptionedImage(src, tit, caption, attr)
-	return BlockQuote(vt100_sda("[Image (" .. tit .. ")](" .. src .. ")", "1") .. "\n" .. caption)
+	return BlockQuote(vt100_sda("[Image (" .. tit .. ")](" .. src .. ")", STYLE_BOLD) .. "\n" .. caption)
 end
 
 -- Gets the 'text only' version of a text to display (as they may have been
@@ -377,14 +395,14 @@ function _utf8Len(ustring)
 	return ulen
 end
 
--- Position text in a wider string (stuffed with blanks)
+-- Position some text within a wider string (stuffed with blanks)
 -- 'way' is '0' to left justify, '1' for right and '2' for center
 function _position(txt, width, way)
 	if way < 0 or way > 2 then
 		return txt
 	end
 	local l = _utf8Len(_getText(txt))
-	if width > l then
+		if width > l then
 		local b = (way == 0 and 0) or math.floor((width - l) / way)
 		local a = width - l - b
 		return string.rep(' ', b) .. txt .. string.rep(' ', a)
@@ -393,14 +411,27 @@ function _position(txt, width, way)
 	end
 end
 
+function _getNthRowLine(txt, nth, height, width)
+	local s = ''
+	if nth == height then
+		s = subString(txt, (nth - 1) * width, width + 1) -- Avoid cutting last UTF8 sequence
+	else
+		s = subString(txt, (nth - 1) * width, width)
+	end
+	return s
+end
+
 MAX_COL_WIDTH = 42
--- Caption is a string, aligns is an array of strings,
--- widths is an array of floats, headers is an array of
--- strings, rows is an array of arrays of strings.
+MIN_COL_WIDTH = 5
+-- "caption" is a string, "aligns" is an array of strings,
+-- "widths" is an array of floats, "headers" is an array of
+-- strings, "rows" is an array of arrays of strings.
 function Table(caption, aligns, widths, headers, rows)
 	local buffer = {}
+	local table_width_for_adjust = 0
+	local max_table_width_for_adjust = terminal_col_nb
 	local align = {["AlignDefault"] = 0, ["AlignLeft"] = 0, ["AlignRight"] = 1, ["AlignCenter"] = 2}
-	local function add(s)
+	local function add_row(s)
 		table.insert(buffer, s)
 	end
 	-- Find maximum width for each column:
@@ -409,73 +440,100 @@ function Table(caption, aligns, widths, headers, rows)
 	for j, row in pairs(rows) do
 		row_height[j] = 1
 	end
+	local header_height = 1
 	local cell_width = 0
 	local cell_height = 0
+	table_width_for_adjust = #headers + 3 -- # of columns + 2 for borders + 1 for margin
 	for i, header in pairs(headers) do
 		table.insert(col_width, i, _utf8Len(_getText(header)))
 		for j, row in pairs(rows) do
 			cell_width = _utf8Len(_getText(row[i]))
 			if cell_width > col_width[i] then
-				col_width[i] = cell_width < MAX_COL_WIDTH and cell_width or MAX_COL_WIDTH
+				col_width[i] = cell_width
 			end
-			cell_height = math.floor(cell_width / MAX_COL_WIDTH) + 1
-			if cell_height > row_height[j] then
-				row_height[j] = cell_height
+		end
+		if (col_width[i] > MIN_COL_WIDTH) then
+			-- Sum of all widths for columns that could be reduced
+			table_width_for_adjust = table_width_for_adjust + col_width[i]
+		else
+			max_table_width_for_adjust = max_table_width_for_adjust - col_width[i]
+		end
+	end
+	-- Reduce large cells if needed:
+	local xs = table_width_for_adjust - max_table_width_for_adjust
+	if xs > 0 then
+		for i, w in pairs(col_width) do
+			if w > MIN_COL_WIDTH then
+				col_width[i] = w - math.floor(w * xs / table_width_for_adjust + 1)
+			end
+			cell_height = math.floor(_utf8Len(_getText(headers[i])) / col_width[i]) + 1
+			if cell_height > header_height then
+				header_height = cell_height
+			end
+			for j, row in pairs(rows) do
+				text_width = _utf8Len(_getText(row[i]))
+				cell_height = math.floor(text_width / col_width[i]) + 1
+				if cell_height > row_height[j] then
+					row_height[j] = cell_height
+				end
 			end
 		end
 	end
-	local top_border = '┌'
-	local row_border = '├'
-	local bottom_border = '└'
+
 	local last = #col_width
 	local tmpl = ''
 	for i, w in pairs(col_width) do
-		tmpl = tmpl .. string.rep('─', w) .. (i < last and 'm' or '')
+		-- Here, 'c' stands for "crossing char" and will be replaced
+		tmpl = tmpl .. string.rep('─', w) .. (i < last and 'c' or '')
 	end
-	top_border = top_border .. string.gsub(tmpl, 'm', '┬') .. '┐'
-	row_border = row_border .. string.gsub(tmpl, 'm', '┼') .. '┤'
-	bottom_border = bottom_border .. string.gsub(tmpl, 'm', '┴') .. '┘'
+	local CELL_SEP = vt100_sda('│', STYLE_DIM)
+	local top_border    = vt100_sda('┌' .. string.gsub(tmpl, 'c', '┬') .. '┐', STYLE_DIM)
+	local row_border    = vt100_sda('├' .. string.gsub(tmpl, 'c', '┼') .. '┤', STYLE_DIM)
+	local bottom_border = vt100_sda('└' .. string.gsub(tmpl, 'c', '┴') .. '┘', STYLE_DIM)
 	
 	if caption ~= "" then
-		add(Strong(caption))
+		add_row(Strong(caption))
 	end
 	local header_row = {}
 	local empty_header = true
 	for i, h in pairs(headers) do
-		table.insert(header_row, Strong(_position(h, col_width[i], 2)))
+		-- Table headers have same color as document headers
 		empty_header = empty_header and h == ""
 	end
-	add(top_border)
-	if empty_header then
-		head = ""
-	else
-		local content = ''
-		for _, h in pairs(header_row) do
-			content = content .. '│' .. h
+	add_row(top_border)
+	local content = ''
+	local s = ''
+	if not empty_header then
+		for k = 1, header_height do -- Break long lines
+			content = ''
+			s = ''
+			for i, h in pairs(headers) do
+				s = _getNthRowLine(h, k, header_height, col_width[i])
+				s = _position(vt100_sda(s, STYLE_TABLE_HEAD), col_width[i], 2)
+				content = content .. CELL_SEP .. s
+			end
+			add_row(content .. CELL_SEP)
 		end
-		add(content .. '│')
-		add(row_border)
+		add_row(row_border)
 	end
 	for i, row in pairs(rows) do
-		local content = ''
-		for k = 1, row_height[i] do -- Break long lines
 		content = ''
+		for k = 1, row_height[i] do -- Break long lines
+			content = ''
+			s = ''
 			for j, c in pairs(row) do
-				local s = ''
 				if (col_width[j]) then
-					s = subString(c, (k - 1) * MAX_COL_WIDTH, MAX_COL_WIDTH)
-					content = content .. '│' .. _position(s, col_width[j], align[aligns[j]])
+					s = _getNthRowLine(c, k, row_height[i], col_width[j])
+					content = content .. CELL_SEP .. _position(s, col_width[j], align[aligns[j]])
 				end
 			end
-			add(content .. '│')
-			
+			add_row(content .. CELL_SEP)
 		end
-		
 		if i < #rows then
-			add(row_border)
+			add_row(row_border)
 		end
 	end
-	add(bottom_border)
+	add_row(bottom_border)
 	return table.concat(buffer,'\n')
 end
 

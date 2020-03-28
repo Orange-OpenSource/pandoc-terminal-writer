@@ -28,8 +28,8 @@ Link without title: <http://foo.bar>
 
 - foo
 - bar:
-    - baz
-    - qux
+  - baz
+  - qux
 - fizz
 - buzz
 
@@ -44,7 +44,7 @@ Link without title: <http://foo.bar>
 
 ### Citations
 
-> Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed non risus.
+> Lorem ipsum dolor sit amet, consectetur adipiscing elit. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Sed non risus.
 
 ### Code without syntax highlighting
 
@@ -72,7 +72,6 @@ function CodeBlock(s, attr)
 	return ret .. vt100_sda("  ╰───┴───────────┄", "2")
 end
 ```
-
 
 ### Code with syntax highlighting
 
@@ -109,7 +108,7 @@ between
 
 ---
 
-two texts
+two paragraphs
 
 ## Tables
 
@@ -120,4 +119,3 @@ two texts
 | **baz** |           256 | 456          |      y      |
 | ~~qux~~ |           512 | 789          |      z      |
 | `fizz`  |          1024 | 000          |      t      |
-
