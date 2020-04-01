@@ -6,6 +6,7 @@
 -- This module is released under the MIT License (MIT).
 -- Please see LICENCE.txt for details.
 -- Author: Camille Oudot
+-- Author: Benoît Bailleux
 
 -- Table to store footnotes, so they can be appended at the end of the output.
 local notes = {}
